@@ -37,40 +37,65 @@
   <button id="prevBtn">Previous Post</button>
 <div>
 <style>
+  /* --- Base layout --- */
   #tiktok-shortposts {
     text-align: center;
     font-family: Arial, sans-serif;
-    padding: 20px 0;
+    padding: 40px 0; /* more vertical breathing room */
+    color: white; /* make text stand out */
+    background: transparent; /* don't override site bg */
   }
 
   #tiktok-shortposts .post-container {
-    width: 50%;
-    margin: 0 auto 20px;
+    width: 60%;
+    margin: 0 auto 40px;
   }
 
   #tiktok-shortposts .post {
     display: none;
+    margin-bottom: 60px; /* space between posts */
   }
 
+  #tiktok-shortposts h2 {
+    color: #ffffff;
+    margin-bottom: 20px; /* space before iframe */
+    font-size: 1.6em;
+  }
+
+  #tiktok-shortposts p {
+    color: #f2f2f2;
+    line-height: 1.6;
+    margin: 10px 0;
+  }
+
+  #tiktok-shortposts iframe {
+    display: block;
+    margin: 20px auto 30px auto; /* add space above & below iframe */
+    border-radius: 10px;
+  }
+
+  /* --- Buttons --- */
   #tiktok-shortposts button {
-    padding: 10px 20px;
-    margin: 5px;
+    padding: 10px 25px;
+    margin: 10px;
     cursor: pointer;
-    border: 1px solid #ccc;
-    background: white;
-    font-size: 14px;
+    border: none;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #000;
+    font-weight: bold;
+    transition: background 0.3s;
   }
 
   #tiktok-shortposts button:hover {
-    background-color: #f0f0f0;
+    background-color: #ccc;
   }
 
-  /* Make the layout responsive for smaller screens */
-  @media (max-width: 600px) {
+  /* --- Responsive adjustments --- */
+  @media (max-width: 800px) {
     #tiktok-shortposts .post-container {
       width: 90%;
     }
-
     #tiktok-shortposts iframe {
       width: 100% !important;
       height: auto !important;
@@ -80,13 +105,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Wait until Blogger finishes rendering post content
   const checkReady = setInterval(() => {
     const container = document.getElementById('tiktok-shortposts');
-    if (!container) return; // still not loaded
+    if (!container) return;
 
     clearInterval(checkReady);
-
     const posts = container.querySelectorAll('.post');
     const nextBtn = container.querySelector('#nextBtn');
     const prevBtn = container.querySelector('#prevBtn');
@@ -107,6 +130,6 @@ document.addEventListener('DOMContentLoaded', function() {
       currentPost = (currentPost - 1 + posts.length) % posts.length;
       posts[currentPost].style.display = 'block';
     });
-  }, 200); // retry every 200ms until Blogger inserts the post
+  }, 200);
 });
 </script>
