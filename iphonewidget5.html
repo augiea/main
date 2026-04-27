@@ -140,65 +140,80 @@ After 4-6 exchanges, start asking "Can I have a turn in her body bro? Just for a
     };
 
     function addMessage(role, content, isPhoto = false, photoType = null) {
-      const container = document.getElementById('chat-messages');
-      
-      const bubble = document.createElement('div');
-      bubble.className = `message-bubble ${role === 'user' ? 'user-bubble' : 'adam-bubble'}`;
-      
-      if (isPhoto) {
-        bubble.innerHTML = `
-          <div class="photo-container">
-            <img src="${content}" alt="${photoType} photo">
-            <div class="text-xs mt-1 opacity-75">${photoType ? photoType.toUpperCase() + ' photo from the beach' : ''}</div>
-          </div>
-        `;
-      } else {
-        bubble.textContent = content;
-      }
-      
-      container.appendChild(bubble);
-      container.scrollTop = container.scrollHeight;
+    const container = document.getElementById('chat-messages');
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble ${role === 'user' ? 'user-bubble' : 'adam-bubble'}`;
 
-      // Add to history for model
-      messages.push({
-        role: role === 'user' ? 'user' : 'assistant',
-        content: isPhoto ? `[Sent ${photoType} photo from nude beach]` : content
+    if (isPhoto) {
+      bubble.innerHTML = `
+        <div class="photo-container">
+          <img src="${content}" alt="${photoType || ''} photo" style="max-width:220px;border-radius:17px;">
+          <div class="text-xs mt-1 opacity-75">${photoType ? photoType.toUpperCase() + ' photo from the nude beach' : ''}</div>
+        </div>
+      `;
+    } else {
+      bubble.textContent = content;
+    }
+
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+
+    // Add to model history
+    messages.push({
+      role: role === 'user' ? 'user' : 'assistant',
+      content: isPhoto ? `[${photoType?.toUpperCase() || 'PHOTO'} sent from the nude beach]` : content
+    });
+  }
+
+  async function callOpenRouter() {
+    if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.includes("XXXXXXXXXXXXXXXX")) {
+      return "Please put your real OpenRouter API key in the code.";
+    }
+
+    const fullMessages = [systemPrompt, ...messages];
+
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": window.location.href || "https://your-github-page",
+          "X-OpenRouter-Title": "Claire Body Swap Erotic Widget"
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: fullMessages,
+          temperature: 0.9,
+          max_tokens: 320
+        })
       });
-    }
 
-    async function callOpenRouter() {
-      if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.includes("XXXXXXXXXXXXXXXX")) {
-        alert("Please replace the OPENROUTER_API_KEY with your real key from openrouter.ai");
-        return "Bro, something's wrong with the connection...";
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("OpenRouter Error:", res.status, errorText);
+        
+        if (res.status === 429) return "Bro, rate limit hit. Wait a minute and try again.";
+        if (res.status === 402) return "Free credits used up. Check your OpenRouter account.";
+        if (res.status === 401) return "Invalid API key. Double-check it.";
+        
+        return `API error (${res.status}). Check console for details.`;
       }
 
-      // Add system prompt if first call
-      const fullMessages = [systemPrompt, ...messages];
-
-      try {
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": window.location.href,
-            "X-OpenRouter-Title": "Claire Body Swap Story Widget"
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            messages: fullMessages,
-            temperature: 0.85,
-            max_tokens: 280
-          })
-        });
-
-        const data = await res.json();
-        return data.choices[0].message.content.trim();
-      } catch (e) {
-        console.error(e);
-        return "Fuck bro, the connection glitched... send another pic?";
+      const data = await res.json();
+      
+      if (!data.choices || !data.choices[0]?.message?.content) {
+        console.error("Unexpected response:", data);
+        return "Weird response from the model... try sending another message.";
       }
+
+      return data.choices[0].message.content.trim();
+
+    } catch (e) {
+      console.error("Fetch error:", e);
+      return "Network error. Check your internet and that the API key is correct.";
     }
+  }
 
     async function sendToAdam(isPhoto = false, photoType = null) {
       // Show typing indicator
