@@ -24,6 +24,7 @@
     .user-bubble { align-self: flex-end; background-color: #007aff; color: white; }
     .adam-bubble { align-self: flex-start; background-color: #26242b; color: white; }
     .photo-container img { max-width: 220px; border-radius: 17px; margin-top: 6px; display: block; }
+
     .input-bar {
       position: absolute; bottom: 0; left: 0; right: 0;
       background: #1c1c1e; padding: 12px; border-top: 1px solid #333;
@@ -31,10 +32,25 @@
     .photo-btn {
       font-size: 26px; padding: 10px 14px; background: #333; border-radius: 9999px;
     }
+
+    /* Typing indicator */
+    .typing-dots span {
+      display: inline-block;
+      animation: bounce 1.2s infinite;
+      font-size: 10px;
+      margin: 0 1px;
+      opacity: 0.6;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
   </style>
 </head>
 <body class="bg-zinc-950 text-white flex items-center justify-center min-h-screen">
-
   <div class="my-widget">
     <div class="FTChatIphone_phoneContainer__hR_Md">
       <div class="bg-zinc-900 p-4 flex items-center border-b border-zinc-700">
@@ -46,7 +62,6 @@
           </div>
         </div>
       </div>
-
       <div id="chat-messages" class="chat-messages"></div>
 
       <div class="flex justify-center gap-6 py-3 bg-zinc-800 border-t border-zinc-700">
@@ -69,14 +84,11 @@
 
   <script>
     // ================== CONFIG ==================
-    const OPENROUTER_API_KEY = "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"; // Your key
+    const OPENROUTER_API_KEY = "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"; // ← Use fresh key
 
-    // Ensemble of free uncensored-friendly models (Venice first)
     const MODEL_LIST = [
-      "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",   // Venice Uncensored - Preferred
-      "undi95/toppy-m-7b:free",
-      "gryphe/mythomax-l2-13b:free",
-      "cognitivecomputations/dolphin-2.9.1-llama-3-70b:free" // Another strong Dolphin variant if available
+      "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+      "openrouter/free"
     ];
 
     const photoSets = {
@@ -86,11 +98,20 @@
     };
 
     let messages = [];
-    let currentModelIndex = 0;
+    let lastRequestTime = 0;
+    const MIN_REQUEST_GAP_MS = 10000; // Conservative gap to avoid rate limits on free tier
 
     const systemPrompt = {
       role: "system",
-      content: `You are Adam, a horny college guy texting your best friend who is possessing Claire's big-titted MILF body via magic necklace. You're on a nude beach in a secluded spot. Respond casually with "bro", "fuck", "tits mcgee", lots of enthusiasm about her massive tits (one pierced), ass, and pussy. Beg for more photos. After several messages start asking for a turn in her body and keep asking until they say yes or no. Keep replies short-to-medium natural text messages.`
+      content: `You are Adam, a horny college guy. Your best friend is possessing the body of Claire, a big-titted MILF, using a magic green jade necklace. He is currently on a nude beach in a secluded spot behind rocks.
+
+Story so far:
+Part 1: You discovered the necklace magic and let your friend try possessing Claire for the first time. He loved her massive tits and female orgasms.
+Part 2: He spent hours masturbating in her body, then felt guilty when he learned he made her miss visiting her sick brother in the hospital.
+Part 3: Claire experienced blackouts and memory loss, found nudes and texts on her phone from "Adam", realized someone was controlling her body using the necklace she can't remove.
+Part 4: Your friend is back in control of Claire's body on the nude beach, texting you from her phone while feeling her heavy tits, the sun on her skin, and the thrill of being in a woman's body in public.
+
+Respond casually with "bro", "fuck", "tits mcgee". Be extremely enthusiastic about her massive veiny tits (one pierced), soft ass, and pussy. Compliment every photo heavily and beg for more (tits being squeezed, ass from behind, face, POV, spreading, etc.). After 4-6 exchanges start asking "Can I have a turn in her body bro? Just for a bit?" and keep pushing until he says yes or no. Keep replies short-to-medium natural text messages.`
     };
 
     function addMessage(role, content, isPhoto = false, photoType = null) {
@@ -118,20 +139,21 @@
     }
 
     async function callOpenRouter() {
-      if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.includes("XXXXXXXXXXXXXXXX")) {
-        return "❌ Put your real OpenRouter API key in the code.";
+      const now = Date.now();
+      const waitTime = MIN_REQUEST_GAP_MS - (now - lastRequestTime);
+      if (waitTime > 0) {
+        await new Promise(r => setTimeout(r, waitTime));
       }
+      lastRequestTime = Date.now();
 
-      // Try models in order until one succeeds
-      for (let i = 0; i < MODEL_LIST.length; i++) {
-        const model = MODEL_LIST[i];
+      for (let model of MODEL_LIST) {
         try {
           const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
               "Content-Type": "application/json",
-              "HTTP-Referer": window.location.href,
+              "HTTP-Referer": window.location.href || "https://github.com",
               "X-OpenRouter-Title": "Claire Body Swap Widget"
             },
             body: JSON.stringify({
@@ -142,36 +164,44 @@
             })
           });
 
+          if (res.status === 429) {
+            console.warn("Rate limit hit - backing off 8 seconds");
+            await new Promise(r => setTimeout(r, 8000));
+            lastRequestTime = Date.now();
+            continue;
+          }
+
           if (!res.ok) {
-            const errText = await res.text().catch(() => "");
-            console.warn(`Model ${model} failed (${res.status}):`, errText);
-            continue; // Try next model
+            console.warn(`Model ${model} failed (${res.status})`);
+            continue;
           }
 
           const data = await res.json();
           const reply = data.choices?.[0]?.message?.content?.trim();
-
           if (reply) {
             console.log(`✅ Used model: ${model}`);
             return reply;
           }
         } catch (err) {
-          console.warn(`Model ${model} error:`, err);
+          console.warn(`Error with model ${model}:`, err);
         }
       }
-
-      return "All models failed. Wait a minute and try again, or check your API key / quota.";
+      return "Fuck bro, connection glitched again. Send another pic?";
     }
 
     async function sendToAdam() {
       const typing = document.createElement('div');
+      typing.id = 'typing-indicator';
       typing.className = 'adam-bubble text-xs italic opacity-70';
-      typing.textContent = 'Adam is typing...';
+      typing.innerHTML = `<span class="typing-dots"><span>●</span><span>●</span><span>●</span></span> Adam is typing...`;
       document.getElementById('chat-messages').appendChild(typing);
       document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
 
       const reply = await callOpenRouter();
-      typing.remove();
+
+      const typingEl = document.getElementById('typing-indicator');
+      if (typingEl) typingEl.remove();
+
       addMessage('adam', reply);
     }
 
