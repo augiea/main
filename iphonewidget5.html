@@ -21,8 +21,8 @@
       max-width: 78%; padding: 11px 16px; border-radius: 20px;
       font-size: 16px; line-height: 1.45; position: relative;
     }
-    .user-bubble   { align-self: flex-end; background-color: #007aff; color: white; }
-    .adam-bubble   { align-self: flex-start; background-color: #26242b; color: white; }
+    .user-bubble { align-self: flex-end; background-color: #007aff; color: white; }
+    .adam-bubble { align-self: flex-start; background-color: #26242b; color: white; }
     .photo-container img { max-width: 220px; border-radius: 17px; margin-top: 6px; display: block; }
     .input-bar {
       position: absolute; bottom: 0; left: 0; right: 0;
@@ -37,7 +37,6 @@
 
   <div class="my-widget">
     <div class="FTChatIphone_phoneContainer__hR_Md">
-      <!-- Header -->
       <div class="bg-zinc-900 p-4 flex items-center border-b border-zinc-700">
         <div class="flex-1 flex items-center gap-3">
           <div class="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">A</div>
@@ -48,20 +47,17 @@
         </div>
       </div>
 
-      <!-- Messages -->
       <div id="chat-messages" class="chat-messages"></div>
 
-      <!-- Photo Buttons -->
       <div class="flex justify-center gap-6 py-3 bg-zinc-800 border-t border-zinc-700">
         <button onclick="takePhoto('face')" class="photo-btn">📸 Face</button>
         <button onclick="takePhoto('tits')" class="photo-btn">📸 Tits</button>
-        <button onclick="takePhoto('ass')"  class="photo-btn">📸 Ass</button>
+        <button onclick="takePhoto('ass')" class="photo-btn">📸 Ass</button>
       </div>
 
-      <!-- Input -->
       <div class="input-bar">
         <div class="flex gap-2">
-          <input id="text-input" type="text" placeholder="Type message..." 
+          <input id="text-input" type="text" placeholder="Type message..."
                  class="flex-1 bg-zinc-700 rounded-full px-5 py-3 outline-none text-base"
                  onkeypress="if(event.key==='Enter') sendText()">
           <button onclick="sendText()" 
@@ -73,10 +69,16 @@
 
   <script>
     // ================== CONFIG ==================
-    const OPENROUTER_API_KEY = "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"; // ← PUT YOUR REAL KEY HERE
-    const MODEL = "cognitivecomputations/dolphin-mistral-24b-venice-edition:free";
+    const OPENROUTER_API_KEY = "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"; // Your key
 
-    // Add your real image URLs here (Imgbox recommended)
+    // Ensemble of free uncensored-friendly models (Venice first)
+    const MODEL_LIST = [
+      "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",   // Venice Uncensored - Preferred
+      "undi95/toppy-m-7b:free",
+      "gryphe/mythomax-l2-13b:free",
+      "cognitivecomputations/dolphin-2.9.1-llama-3-70b:free" // Another strong Dolphin variant if available
+    ];
+
     const photoSets = {
       face: ["https://images2.imgbox.com/a9/d9/fjhojwSt_o.jpg"],
       tits: ["https://images2.imgbox.com/26/7c/9wlta9QT_o.jpg"],
@@ -84,6 +86,7 @@
     };
 
     let messages = [];
+    let currentModelIndex = 0;
 
     const systemPrompt = {
       role: "system",
@@ -108,7 +111,6 @@
       container.appendChild(bubble);
       container.scrollTop = container.scrollHeight;
 
-      // Add to context for the model
       messages.push({
         role: role === 'user' ? 'user' : 'assistant',
         content: isPhoto ? `[Sent ${photoType?.toUpperCase()} photo from nude beach]` : content
@@ -117,43 +119,48 @@
 
     async function callOpenRouter() {
       if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.includes("XXXXXXXXXXXXXXXX")) {
-        return "❌ Put your real OpenRouter API key in the code (starts with sk-or-)";
+        return "❌ Put your real OpenRouter API key in the code.";
       }
 
-      const payload = {
-        model: MODEL,
-        messages: [systemPrompt, ...messages],
-        temperature: 0.9,
-        max_tokens: 300
-      };
+      // Try models in order until one succeeds
+      for (let i = 0; i < MODEL_LIST.length; i++) {
+        const model = MODEL_LIST[i];
+        try {
+          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": window.location.href,
+              "X-OpenRouter-Title": "Claire Body Swap Widget"
+            },
+            body: JSON.stringify({
+              model: model,
+              messages: [systemPrompt, ...messages],
+              temperature: 0.9,
+              max_tokens: 300
+            })
+          });
 
-      try {
-        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": window.location.href,
-            "X-OpenRouter-Title": "Claire Body Swap Widget"
-          },
-          body: JSON.stringify(payload)
-        });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            console.warn(`Model ${model} failed (${res.status}):`, errText);
+            continue; // Try next model
+          }
 
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          console.error(`OpenRouter ${res.status}:`, errText);
-          if (res.status === 401) return "❌ 401 Unauthorized — Your API key is invalid or expired. Regenerate it at openrouter.ai/keys";
-          if (res.status === 429) return "Rate limit hit. Wait a minute.";
-          return `API error (${res.status}). Check console.`;
+          const data = await res.json();
+          const reply = data.choices?.[0]?.message?.content?.trim();
+
+          if (reply) {
+            console.log(`✅ Used model: ${model}`);
+            return reply;
+          }
+        } catch (err) {
+          console.warn(`Model ${model} error:`, err);
         }
-
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content?.trim() || "The model returned nothing...";
-
-      } catch (err) {
-        console.error("Fetch failed:", err);
-        return "Network error — check your internet / API key.";
       }
+
+      return "All models failed. Wait a minute and try again, or check your API key / quota.";
     }
 
     async function sendToAdam() {
@@ -170,7 +177,7 @@
 
     function takePhoto(type) {
       const urls = photoSets[type] || [];
-      const url = urls[Math.floor(Math.random() * urls.length)] || "https://via.placeholder.com/600x800/444/fff?text=Photo+Failed";
+      const url = urls[Math.floor(Math.random() * urls.length)] || "https://via.placeholder.com/600x800/444/fff?text=Photo";
       addMessage('user', url, true, type);
       setTimeout(sendToAdam, 700);
     }
@@ -184,17 +191,12 @@
       setTimeout(sendToAdam, 600);
     }
 
-    // Initialize chat with story context
     function initChat() {
       document.getElementById('chat-messages').innerHTML = '';
       messages = [];
-
       addMessage('user', "Hey this is Claire's phone. I'm back in her body at the nude beach bro");
       addMessage('adam', "No fucking way! Tits McGee is back online?? Send proof right now");
-
-      setTimeout(() => {
-        sendToAdam();
-      }, 800);
+      setTimeout(sendToAdam, 800);
     }
 
     window.onload = initChat;
